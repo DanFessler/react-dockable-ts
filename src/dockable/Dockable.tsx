@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { DragDropContext, DropResult } from 'react-beautiful-dnd';
-import { arrayMoveImmutable as arrayMove } from 'array-move';
 import PanelGroup from '../react-panelgroup';
 import ContextMenu from './ContextMenu';
 import WindowPanel from './WindowPanel';
@@ -9,6 +8,23 @@ import css from './css/Dockable.module.css';
 
 // types
 import { Actions } from './ContextMenu';
+
+function arrayMoveMutable(array: any[], fromIndex: number, toIndex: number) {
+  const startIndex = fromIndex < 0 ? array.length + fromIndex : fromIndex;
+
+  if (startIndex >= 0 && startIndex < array.length) {
+    const endIndex = toIndex < 0 ? array.length + toIndex : toIndex;
+
+    const [item] = array.splice(fromIndex, 1);
+    array.splice(endIndex, 0, item);
+  }
+}
+
+function arrayMoveImmutable(array: any[], fromIndex: number, toIndex: number) {
+  array = [...array];
+  arrayMoveMutable(array, fromIndex, toIndex);
+  return array;
+}
 
 // TODO declarative API
 // <Dockable>
@@ -54,6 +70,12 @@ type DockableProps = {
   active?: string;
   tabHeight?: number;
   children?: JSX.Element | JSX.Element[];
+  top?: number;
+  left?: number;
+  actions?: any;
+  onClickOut?: (event: {}) => void;
+
+  testId?: string; /// if present will put a data-testid on a dockable container for your React Testing Library needs.
 };
 
 function Dockable({
@@ -69,6 +91,7 @@ function Dockable({
   active,
   tabHeight,
   children,
+  testId,
 }: DockableProps) {
   const [state, setState] = useState({
     contextMenu: null as ContextMenu,
@@ -173,7 +196,7 @@ function Dockable({
     tabEnd: number
   ) {
     let newPanels = [...getPanels()];
-    newPanels[panelIndex].windows[windowIndex].widgets = arrayMove(
+    newPanels[panelIndex].windows[windowIndex].widgets = arrayMoveImmutable(
       newPanels[panelIndex].windows[windowIndex].widgets,
       tabStart,
       tabEnd
@@ -318,12 +341,15 @@ function Dockable({
     return panels;
   }
 
+  const testIdAttribute = testId ? { 'data-testid': testId } : {};
+
   return (
     <div
       className={`Dockable_root ${css.container} ${
         themeClass ? themeClass : css.theme
       }`}
       style={theme}
+      {...testIdAttribute}
     >
       <DragDropContext onDragEnd={handleDragEnd} onDragStart={handleDragStart}>
         <PanelGroup

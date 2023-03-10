@@ -1,9 +1,11 @@
-import React, { useRef } from "react";
-import PanelGroup from "../react-panelgroup";
-import Window from "./Window";
-import { Widget } from "./Widget";
+import React, { useRef } from 'react';
+import PanelGroup from '../react-panelgroup';
+import Window from './Window';
+import { Widget } from './Widget';
 
-import css from "./css/WindowPanel.module.css";
+import { ErrorWithContext } from './ErrorWithContext';
+
+import css from './css/WindowPanel.module.css';
 
 function WindowPanel({
   index,
@@ -82,35 +84,67 @@ function WindowPanel({
   }
 
   function filterVisibleWidgets(thisWindow) {
-    return thisWindow.widgets.filter(
-      (widget) => !(getWidgetComponent(widget).props.hidden || hidden[widget])
-    );
+    let lastKey = 'unknown';
+    try {
+      return thisWindow.widgets.filter(widget => {
+        lastKey = widget;
+        return !(getWidgetComponent(widget).props.hidden || hidden[widget]);
+      });
+    } catch (e) {
+      console.error(
+        `Almost certainly missing/misentered a dockable id. lastKey: ${lastKey} Error: `,
+        lastKey,
+        e
+      );
+    }
   }
 
   function getFilteredWindows() {
     if (!hidden) return windows;
 
-    return windows.filter((windows) => {
+    if (!windows) {
+      var self = this;
+      throw new ErrorWithContext('Expected "this.windows" to exist.', {
+        this: self,
+      });
+    }
+
+    if (!windows.filter) {
+      throw new ErrorWithContext('Expected "windows" to be an array.  ', {
+        windows,
+      });
+    }
+
+    return windows.filter(windows => {
       return (
-        windows.widgets.filter((widget) => {
-          return !hidden[widget];
+        windows.widgets.filter(widget => {
+          let val = false;
+          try {
+            val = hidden[widget];
+          } catch (e) {
+            console.error(`Error accessing hidden[${widget}]`, e);
+            console.error(
+              'suppressing for now. Dan, this should probably throw correctly and do an error boundary thing? -Ben'
+            );
+            //TODO: fix this bug for a better handholding experience.  Debugging bad data in-system is a pain rigth now -Ben
+          }
+
+          return !val;
         }).length > 0
       );
     });
   }
 
   function getWidgetComponent(id) {
-    return React.Children.toArray(widgets).find(
-      (child) => child.props.id === id
-    );
+    return React.Children.toArray(widgets).find(child => child.props.id === id);
   }
 
   return (
     <div className={css.container} ref={containerRef}>
       <PanelGroup
-        direction={"column"}
+        direction={'column'}
         spacing={spacing || 0}
-        borderColor={"transparent"}
+        borderColor={'transparent'}
         panelWidths={getFilteredWindows()}
         // onUpdate={panels => setState({ panelWidths: panels.slice() })}
         onUpdate={handleResize}
@@ -128,7 +162,7 @@ function WindowPanel({
               isLast={windowIndex === windows.length - 1}
               draggingTab={draggingTab}
               hoverBorder={hoverBorder}
-              onHoverBorder={(i) => {
+              onHoverBorder={i => {
                 onHoverBorder(i === null ? null : [index, i]);
               }}
               onSort={onTabSort.bind(this, index, windowIndex)}
@@ -144,15 +178,15 @@ function WindowPanel({
               // }}
               onTabSwitch={handleTabSwitch.bind(null, windowIndex)}
               onTabClosed={(winId, tabId) => {
-                var [panelId, windowId] = winId.split(",");
+                var [panelId, windowId] = winId.split(',');
                 onTabClosed(
                   parseInt(panelId, 10),
                   parseInt(windowId, 10),
                   tabId
                 );
               }}
-              onWindowClosed={(winId) => {
-                var [panelId, windowId] = winId.split(",");
+              onWindowClosed={winId => {
+                var [panelId, windowId] = winId.split(',');
                 onWindowClosed(parseInt(panelId, 10), parseInt(windowId, 10));
               }}
               hideTabs={thisWindow.hideTabs || hideTabs}
