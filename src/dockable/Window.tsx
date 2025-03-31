@@ -1,8 +1,31 @@
-import React, { useEffect, useRef } from 'react';
+import React, { MouseEventHandler, useEffect, useRef } from 'react';
 import { Droppable, Draggable } from 'react-beautiful-dnd';
 
 import css from './css/Window.module.css';
 // import Color from "color";
+
+export type WindowProps = {
+  index: number;
+  active: string;
+  windowId: string;
+  isLast: boolean;
+  draggingTab: boolean;
+  hoverBorder: [number, number];
+  selected: number;
+  hideTabs: boolean;
+  hideMenu: boolean;
+  tabHeight: number;
+  style: any;
+  onSort: (windowId: string, from: number, to: number) => void;
+  onActive: (id: string) => void;
+  onContextClick: (actions: any[], x: number, y: number) => void;
+  onHoverBorder: (index: number) => void;
+  onTabSelect: (tabId: number, componentId: string) => void;
+  onTabSwitch: (size: number) => void;
+  onTabClosed: (windowId: string, tabId?: number) => void;
+  onWindowClosed: (windowId: string) => void;
+  children: React.ReactNode[]
+};
 
 function Window({
   index,
@@ -25,16 +48,18 @@ function Window({
   onTabClosed,
   onWindowClosed,
   children,
-}) {
+}: WindowProps) {
   const widgetRef = useRef();
   const containerRef = useRef();
 
   // When tab has been switched, report the minsize of the new widget
   useEffect(() => {
-    function getSize(tab) {
+    function getSize(tab: number) {
       let widget = React.Children.toArray(children)[
         tab == undefined ? selected : tab
       ];
+
+      // @ts-ignore
       let size = widget.props.minHeight ? widget.props.minHeight : 0;
       return size + 34; // content size + tab bar
     }
@@ -74,8 +99,9 @@ function Window({
   }
 
   function renderBorders() {
-    if (!containerRef.current) return;
+    if (!containerRef.current) return undefined;
 
+    // @ts-ignore
     const rect = containerRef.current.getBoundingClientRect();
 
     return [
@@ -117,6 +143,7 @@ function Window({
       className={css.container}
       ref={containerRef}
       onMouseDown={() =>
+        // @ts-ignore
         onActive(React.Children.toArray(children)[selected].props.id)
       }
     >
@@ -133,7 +160,7 @@ function Window({
             onSort={onSort}
             windowId={windowId}
             hoverBorder={hoverBorder}
-            onClose={() => onTabClosed(windowId)}
+            onClose={onTabClosed}
             hideMenu={
               // hide the context menu if there aren't any actions to show
               hideMenu || !getActions(GetSelectedWidget()).length
@@ -149,6 +176,20 @@ function Window({
   );
 }
 
+export type TabBarProps = {
+  active: string;
+  widgets: React.ReactNode[];
+  selected: number;
+  onTabClick: (tabId: number, componentId: string) => void;
+  onContextClick: MouseEventHandler<HTMLDivElement>;
+  onSort: (windowId: string, from: number, to: number) => void;
+  windowId: string;
+  hoverBorder: [number, number];
+  onClose: (windowId: string, tabId?: number) => void;
+  hideMenu: boolean;
+  tabHeight: number;
+};
+
 function TabBar({
   active,
   widgets,
@@ -161,7 +202,7 @@ function TabBar({
   onClose,
   hideMenu,
   tabHeight,
-}) {
+}: TabBarProps) {
   function getStyle(style, snapshot) {
     if (!snapshot.isDropAnimating) {
       return style;
@@ -170,9 +211,8 @@ function TabBar({
     return {
       ...style,
       // cannot be 0, but make it super tiny
-      transition: `all ${curve} ${
-        snapshot.isDropAnimating ? 0.001 : duration
-      }s`,
+      transition: `all ${curve} ${snapshot.isDropAnimating ? 0.001 : duration
+        }s`,
       // boxShadow: snapshot.isDragging
       //   ? "0 1px 10px rgba(0,0,0,0.25), 0 1px 2px rgba(0,0,0,0.25)"
       //   : `1px -1px 0 #353535, -1px -1px 0 #353535`,
@@ -180,38 +220,66 @@ function TabBar({
     };
   }
 
+  function onWheel(event: React.WheelEvent<HTMLDivElement>) {
+      if(!event.shiftKey){
+          event.currentTarget.scrollLeft += event.deltaY;
+      }else{
+        const nextTabId = selected + (event.deltaY > 0 ? 1 : -1);
+        if (nextTabId < 0 || nextTabId >= widgets.length) return;
+        const widgetId = (widgets[nextTabId] as any)?.props?.id;
+        if(widgetId === undefined) return;
+        onTabClick(nextTabId, widgetId);
+      }
+  }
+
   return (
-    <Droppable droppableId={windowId} direction="horizontal">
+    <Droppable droppableId={windowId} type="dockable-tab" direction="horizontal">
       {(provided, snapshot) => (
         <div
-          className={`${css.tabBar} ${
-            snapshot.isDraggingOver &&
+          className={`${css.tabBar} ${snapshot.isDraggingOver &&
             !snapshot.draggingFromThisWith &&
             !hoverBorder
-              ? css.tabBarHover
-              : ''
-          }`}
+            ? css.tabBarHover
+            : ''
+            }`}
           style={tabHeight ? { height: tabHeight } : {}}
         >
           {/* <div className={css.tabSpacer}> */}
           <div
             ref={provided.innerRef}
             className={css.tabSpacer}
+            onWheel={onWheel}
             {...provided.droppableProps}
           >
-            {widgets.map((child, i) => (
-              <Draggable
+            {widgets.map((child: any, i) => {
+              if (child.props.TabContainerComponent) {
+                var TabContainer = child.props.TabContainerComponent;
+                var maybeCloseTab = {
+                  closeTab: () => {
+                    if (child.props.onClose)
+                      child.props.onClose(child.props.id);
+                    onClose(windowId, i);
+                  }
+                }
+              }
+              else {
+                TabContainer = 'div'
+                maybeCloseTab = {} as any
+              }
+
+              return <Draggable
                 key={`${windowId},${i}`}
                 draggableId={`${windowId},${i}`}
                 index={i}
               >
                 {(provided, snapshot) => (
-                  <div
+                  <TabContainer
                     ref={provided.innerRef}
                     {...provided.draggableProps}
                     {...provided.dragHandleProps}
                     key={i}
                     className={`${css.tab} ${i === selected ? css.active : ''}`}
+                    {...maybeCloseTab}
                     onMouseDown={e => {
                       onTabClick(i, child.props.id);
                       e.stopPropagation();
@@ -231,34 +299,29 @@ function TabBar({
                     </span>
 
                     {/* {!hideMenu && (
-                        <div
-                          className={css.burgerMenuContainer}
-                          onClick={onContextClick}
-                          style={
-                            {
-                              width: i === selected && !snapshot.isDragging ? 32 : 0
-                            }
-                          }
-                        >
-                          <div className={css.burgerMenu} />
-                        </div>
-                      )} */}
+                                <div
+                                  className={css.burgerMenuContainer}
+                                  onClick={onContextClick}
+                                  style={
+                                    {
+                                      width: i === selected && !snapshot.isDragging ? 32 : 0
+                                    }
+                                  }
+                                >
+                                  <div className={css.burgerMenu} />
+                                </div>
+                              )} */}
 
                     {child.props.closeable ? (
                       <div
                         className={css.closeBox}
-                        style={{ backgroundImage: `url(${burger})` }}
-                        onClick={e => {
-                          if (child.props.onClose)
-                            child.props.onClose(child.props.id);
-                          onClose(i);
-                        }}
+                        onClick={maybeCloseTab.closeTab}
                       />
                     ) : null}
-                  </div>
+                  </TabContainer>
                 )}
               </Draggable>
-            ))}
+            })}
             {provided.placeholder}
           </div>
           {/* </div> */}

@@ -1,10 +1,18 @@
 import React, { forwardRef } from "react";
 
+export type PanelProps = {
+  className?: string;
+  color?: string;
+  data: any;
+  direction?: "row" | "column";
+  children?: JSX.Element | JSX.Element[];
+}
+
 const Panel = forwardRef(function (
-  { className, color, data, direction, children },
+  { className, color, data, direction, children }: PanelProps,
   ref
 ) {
-  function getPropertyName(type, inverse) {
+  function getPropertyName(type: string, inverse: boolean = false) {
     let isRow = direction === "row";
     if (inverse) isRow = !isRow;
 
@@ -16,13 +24,14 @@ const Panel = forwardRef(function (
       case "maxSize":
         return isRow ? "maxWidth" : "maxHeight";
       default:
-        return;
+        throw new Error("Invalid type");
     }
   }
 
   return (
     <div
       className={`pg-panel ${className || ""}`}
+      // @ts-ignore
       ref={ref}
       style={{
         [getPropertyName("size")]: data.size,

@@ -4,6 +4,40 @@ import Window from "./Window";
 import { Widget } from "./Widget";
 
 import css from "./css/WindowPanel.module.css";
+import { HoverBorder } from "./Dockable";
+export type WindowPanelProps = {
+  index: number;
+  isLast: boolean;
+  draggingTab: boolean;
+  hoverBorder: HoverBorder;
+  onHoverBorder: (index: HoverBorder) => void;
+  windows: any[];
+  onTabSort: (
+    panelIndex: number,
+    windowIndex: number,
+    tabStart: number,
+    tabEnd: number
+  ) => void;
+  onTabSelect: (
+    panelId: number,
+    windowId: number,
+    tabId: number,
+    componentId: string
+  ) => void;
+  onContextClick: (actions: any[], x: number, y: number) => void;
+  widgets?: JSX.Element | JSX.Element[];
+  onUpdate: (panelId: number, windows: any[]) => void;
+  onTabClosed: (panelId: number, windowId: number, tabId: number) => void;
+  onWindowClosed: (panelId: number, windowId: number) => void;
+  spacing?: number;
+  hideMenus?: boolean;
+  hideTabs?: boolean;
+  active?: string;
+  onActive: (id: string) => void;
+  tabHeight?: number;
+  hidden?: any;
+};
+
 
 function WindowPanel({
   index,
@@ -26,8 +60,8 @@ function WindowPanel({
   onActive,
   tabHeight,
   hidden,
-}) {
-  const containerRef = useRef();
+}: WindowPanelProps) {
+  const containerRef = useRef<HTMLDivElement>()
   // let windowRefs = [];
 
   function handleTabSwitch(i, size) {
@@ -48,7 +82,7 @@ function WindowPanel({
   }
 
   function renderBorders() {
-    if (!containerRef.current) return;
+    if (!containerRef.current) return undefined;
     const rect = containerRef.current.getBoundingClientRect();
 
     return [
@@ -81,9 +115,15 @@ function WindowPanel({
     ];
   }
 
-  function filterVisibleWidgets(thisWindow) {
+  function filterVisibleWidgets(thisWindow: { widgets: any[]; }) {
     return thisWindow.widgets.filter(
-      (widget) => !(getWidgetComponent(widget).props.hidden || hidden[widget])
+      (widget) => {
+        if (!getWidgetComponent(widget)) {
+          console.warn(`Widget ${widget} not found. keeping it hidden`);
+        }
+        // @ts-ignore
+        return !(getWidgetComponent(widget)?.props.hidden || hidden[widget])
+      }
     );
   }
 
@@ -101,6 +141,7 @@ function WindowPanel({
 
   function getWidgetComponent(id) {
     return React.Children.toArray(widgets).find(
+      // @ts-ignore
       (child) => child.props.id === id
     );
   }
@@ -160,10 +201,10 @@ function WindowPanel({
               style={thisWindow.style}
               tabHeight={tabHeight}
             >
-              {filteredWidgets.map((widget, i) => {
+              {filteredWidgets.map((widget, index) => {
                 // Find component with the desired name
                 let Component = getWidgetComponent(widget);
-                if (!Component) Component = <Widget title="Missing Widget" />;
+                if (!Component) Component = <Widget key={index} title="Missing Widget" />;
                 return Component;
               })}
             </Window>
